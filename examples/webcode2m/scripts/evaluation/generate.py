@@ -13,13 +13,13 @@ from scripts.train.utils import smart_tokenizer_and_embedding_resize,move_to_dev
 from pathlib import Path
 from metrics import *
 import time
+import json
 
-
-processor_name_or_path = '/data02/models/pix2struct-base/'
-ckpt_path='/data03/starmage/projects/UICoder/checkpoints/final/stage0/ws_30w_l3072_p1024_ws_1m_3'
-dataset_path= '/data02/starmage/datasets/cc/bench/short.parquet'
-out_dir = '/data03/starmage/projects/UICoder/outputs/stage0_m-p2c_d-ws_l3072_p1024_v2i_short'
-device = 'cuda:7'
+processor_name_or_path = "xcodemind/webcoder"
+ckpt_path=processor_name_or_path
+dataset_path= "xcodemind/webcode2m_test"
+out_dir = '/home/ubuntu/'
+device = 'cuda'
 
 
 def load(path):
@@ -83,25 +83,38 @@ def eval():
     global out_dir
     out_dir = Path(out_dir)
     out_dir.mkdir(exist_ok=True, parents=True)   
-    dataset=load(dataset_path)
+    dataset=load_dataset(dataset_path)
     # generate preds
     print("Inferencing ...")
     model.eval()    
+    split_names = ['short', 'mid', 'long']
+    # split_names = ['short']
+    for split_name in split_names:
+        split = dataset[split_name]
+        print(len(split))
 
-    
-    with torch.no_grad():
-        for idx,item in enumerate(tqdm(dataset)):
-            s_start=time.time()
-            subdir = out_dir / f'{idx}'
-            subdir.mkdir(exist_ok=True, parents=True)      
-            pred_html = predict(model, item, processor, device)         
-            duration = time.time() - s_start
-            with open(subdir / f'answer.html','w',encoding='utf-8') as fi:
-                fi.write(item['text'])
-            with open(subdir / f'prediction.html','w',encoding='utf-8') as fi:
-                fi.write(pred_html)    
-            with open(subdir / f'time.csv','a+') as fi:
-                fi.write(f'{duration}\n')    
+        results = []
+        with torch.no_grad():
+            for idx,item in enumerate(tqdm(split)):
+                s_start=time.time()
+                subdir = out_dir / f'{idx}'
+                subdir.mkdir(exist_ok=True, parents=True)      
+                pred_html = predict(model, item, processor, device)
+                results.append({
+                    "sample_idx": idx,
+                    "generated_text_clean": pred_html,
+                    "generated_text_raw": pred_html
+                })    
+                duration = time.time() - s_start
+                # with open(subdir / f'answer.html','w',encoding='utf-8') as fi:
+                #     fi.write(item['text'])
+                # with open(subdir / f'prediction.html','w',encoding='utf-8') as fi:
+                #     fi.write(pred_html)    
+                # with open(subdir / f'time.csv','a+') as fi:
+                #     fi.write(f'{duration}\n')    
+                output_filename = f"/home/ubuntu/qwen_2_5_vl_outputs_webcoder_{split_name}.json"
+                with open(output_filename, "w", encoding="utf-8") as f:
+                    json.dump(results, f, ensure_ascii=False, indent=2)
                
 if __name__ == '__main__':
     torch.manual_seed(SEED)

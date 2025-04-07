@@ -2,7 +2,17 @@ import re
 from transformers import PreTrainedModel, AutoTokenizer, AddedToken
 from typing import Dict
 import torch
-from vars import *
+# from vars import *
+
+START_TOKEN_ID = 2
+PAD_TOKEN_ID = 0
+END_TOEKN_ID = 1
+IGNORE_ID = -100
+
+SEED = 2618
+
+bbox_padding = 8
+precision = 3
 
 def move_to_device(data,device):
     if isinstance(data, (list,tuple)):

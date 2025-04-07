@@ -9,22 +9,69 @@ import numpy as np
 from bs4 import BeautifulSoup
 from html_tree import * 
 import clip
+import open_clip
 import torch
 
 CLIP_MODEL, CLIP_PREPROCESS = None,None
-def clip_encode(ims,device='cuda'):
+def clip_encode(ref_image, cand_image, device='cpu'):
     global CLIP_MODEL
     global CLIP_PREPROCESS
     if not CLIP_MODEL:        
-        CLIP_MODEL, CLIP_PREPROCESS = clip.load("ViT-B/32", device=device)
-    with torch.no_grad():
-        img_tmps = torch.stack([CLIP_PREPROCESS(im) for im in ims]).to(device)
-        img_feas = CLIP_MODEL.encode_image(img_tmps).cpu()
-    return img_feas   
+        CLIP_MODEL, CLIP_PREPROCESS = clip.load("ViT-L/14", device=device)
+        # CLIP_MODEL, _, CLIP_PREPROCESS = open_clip.create_model_and_transforms(
+        #      model_name="ViT-L-14",
+        #      pretrained="openai",
+        #      device=device,
+        #      cache_dir=None
+        #  )
+        CLIP_MODEL.eval()
+    if not isinstance(ref_image, Image.Image):
+        if isinstance(ref_image, np.ndarray):
+            ref_image = Image.fromarray(ref_image.astype('uint8'))
+        elif isinstance(ref_image, torch.Tensor):
+            ref_image = Image.fromarray(ref_image.cpu().numpy().astype('uint8'))
+            
+    if not isinstance(cand_image, Image.Image):
+        if isinstance(cand_image, np.ndarray):
+            cand_image = Image.fromarray(cand_image.astype('uint8'))
+        elif isinstance(cand_image, torch.Tensor):
+            cand_image = Image.fromarray(cand_image.cpu().numpy().astype('uint8'))
 
-def clip_sim(im1, im2, device='cuda'):
-    feas = clip_encode([im1 , im2], device)
-    return torch.nn.functional.cosine_similarity(feas[0], feas[1], dim=0).item()
+    ref_image_array = np.array(ref_image.convert("RGB"))
+    cand_image_array = np.array(cand_image.convert("RGB"))
+    std1 = np.std(ref_image_array)
+    std2 = np.std(cand_image_array)
+         
+    if std1 < 10 or std2 < 10:
+        return 0.0
+    with torch.no_grad():
+        # img_tmps = torch.stack([CLIP_PREPROCESS(im) for im in ims]).to(device)
+        ref_image_processed = CLIP_PREPROCESS(ref_image).unsqueeze(0).to(device)
+        cand_image_processed = CLIP_PREPROCESS(cand_image).unsqueeze(0).to(device)
+        # img_feas = CLIP_MODEL.encode_image(img_tmps).cpu()
+        try:
+            ref_image_features = CLIP_MODEL.encode_image(ref_image_processed)
+            cand_image_features = CLIP_MODEL.encode_image(cand_image_processed)
+            
+            # Normalize features
+            ref_image_features = ref_image_features / ref_image_features.norm(dim=1, keepdim=True)
+            cand_image_features = cand_image_features / cand_image_features.norm(dim=1, keepdim=True)
+            
+            # Compute cosine similarity and scale to 0-1
+            similarity = (ref_image_features @ cand_image_features.T).item()
+            
+            # Scale from [-1, 1] to [0, 1]
+            similarity = (similarity + 1) / 2
+            
+            return similarity
+        except Exception as e:
+            print(f"CLIP reward error: {e}")
+            return 0.0
+
+def clip_sim(im1, im2, device='cpu'):
+    score = clip_encode(im1, im2, device)
+    return score
+    # return torch.nn.functional.cosine_similarity(feas[0], feas[1], dim=0).item()
 
 def bleu_rouge(original: str, generated: str):
     # 将html代码分割为单词列表

@@ -77,7 +77,8 @@ def take_screenshot_single(browser:Browser, url, output_file, output_bbox=False)
         
 def main(input, output):
     with sync_playwright() as p:
-        browser = p.chromium.launch()
+        browser = p.chromium.launch(executable_path='/home/ubuntu/.cache/ms-playwright/chromium_headless_shell-1161/chrome-linux/headless_shell',
+                                    headless=True)
         if not Path(input).is_dir():
             take_screenshot_single(browser, input, output)
         else:

@@ -571,7 +571,7 @@ def visual_score_v3(origin_html, pred_html, origin_screemnshot, pred_screenshot,
     global CLIP_MODEL
     global CLIP_PREPROCESS
     if CLIP_MODEL is None:
-        CLIP_MODEL, CLIP_PREPROCESS = clip.load("ViT-B/32", device=device)
+        CLIP_MODEL, CLIP_PREPROCESS = clip.load("ViT-L/14", device=device)
     
     predict_blocks = get_blocks_ocr_free(pred_html, pred_screenshot,tmp_dir)
     original_blocks = get_blocks_ocr_free(origin_html, origin_screemnshot,tmp_dir)
